@@ -170,7 +170,7 @@ get_zpool() {
 # TODO: This is not guarranteed to generate a unique result, and
 # failure to do so will end badly.
 zfs_name() {
-    local filesystem=$1
+    local filesystem="$1"
 
     echo $filesystem | tr -c '[:alnum:]_:.-\n' _
 }
@@ -178,8 +178,9 @@ zfs_name() {
 # Generate the name of the ZFS used to store the backups server-side
 # given the host and filesystem.
 server_local_storage() {
-    local clienthost=$1
-    local filesystem=$2
+    local var_return=$1
+    local clienthost=$2
+    local filesystem=$3
     local path
     
     # Without a hostname, the filesytem part is useless and will be
@@ -193,7 +194,7 @@ server_local_storage() {
 	fi
     fi
     
-    echo "$ZPOOL$BACKUPROOT$path"
+    setvar "$var_return" "$ZPOOL$BACKUPROOT$path"
 }
 
 
@@ -377,7 +378,7 @@ server_list_fs() {
     local storage
     local filesystems
     
-    storage=$( server_local_storage $clienthost )
+    server_local_storage storage $clienthost
     zfs list -H -d 1 -o name $storage | exclude_fs $exclude
 }
 
@@ -551,7 +552,7 @@ check_server_setup_for_client() {
     local zfs
     local mountpoint
 
-    zfs=$( server_local_storage "$clienthost" )
+    server_local_storage zfs "$clienthost"
     mountpoint=$( zfs_to_path $zfs )
     if [ -z $mountpoint ]; then
 	echo >&2 "$ME: FAIL Backup filesystem \"$mountpoint\" not mounted"
@@ -581,7 +582,7 @@ check_server_setup_for_filesystem() {
     local zfs_state
     local mountpoint		# where it's backed up on the server
     
-    zfs=$( server_local_storage $clienthost $filesystem )
+    server_local_storage zfs $clienthost $filesystem
 
     # Does the ZFS exist at all?
     zfs_state=$( zfs list -H -o name -t filesystem $zfs 2>/dev/null )
@@ -697,7 +698,7 @@ EOF
     # Create the top-level ${ZPOOL}/backup zfs if needed.  This mostly
     # exists to inherit stuff from.  Set some default properties that
     # everything else will inherit.
-    zfs=$( server_local_storage )
+    server_local_storage zfs
     if ! zfs list -H -t filesystem $zfs >/dev/null 2>&1 ; then
 	cat <<EOF
 $scriptheader
@@ -734,7 +735,7 @@ EOF
     fi
 
     # Create the per-host zfs and make it writable by the server backup user
-    zfs=$( server_local_storage $clienthost )
+    server_local_storage zfs $clienthost
     if ! zfs list -H -t filesystem $zfs >/dev/null 2>&1 ; then
 	cat <<EOF
 $scriptheader
@@ -1027,7 +1028,7 @@ server_backup() {
 	# Note 2: the '__list_tags' action returns the tags with the
 	# newest first, ie. sorted in reverse order.
 	
-	localstorage=$( server_local_storage $clienthost $filesystem )
+	server_local_storage localstorage $clienthost $filesystem
 	prevbackuptag=$( latest_common_backup $localstorage \
 				  $clienthost $clientuser $filesystem )
 	if [ -n "$prevbackuptag" ]; then
@@ -1061,7 +1062,7 @@ server_full() {
     local localstorage
 
     for fs in $fslist ; do
-	localstorage=$( server_local_storage $clienthost $fs )
+	server_local_storage localstorage $clienthost $fs
 	on_client $clienthost $clientuser full $option_d $option_n \
 		  $option_v -F $fs | \
 	    receive_stream $localstorage
@@ -1107,7 +1108,7 @@ server_nuke() {
     local localstorage
 
     for filesystem in $fslist ; do
-	localstorage=$( server_local_storage $clienthost $filesystem )
+	server_local_storage localstorage $clienthost $filesystem
 
 	runv zfs destroy -r $option_n $option_v $localstorage
     
@@ -1123,7 +1124,7 @@ server_list_backups() {
     local localstorage
 
     for filesystem in $fslist ; do
-	localstorage=$( server_local_storage "$clienthost" "$filesystem" )
+	server_local_storage localstorage "$clienthost" "$filesystem"
 
 	runv zfs list -t all -o name,creation,used,mountpoint -r $localstorage
     done
