@@ -213,9 +213,10 @@ path_to_zfs() {
 # Find where the named zfs is mounted. Only returns the mountpoint, so
 # not actually the inverse of path_to_zfs().
 zfs_to_path() {
-    local zfs=$1
+    local var_return="$1"
+    local zfs="$2"
 
-    zfs list -H -t filesystem -o mountpoint $zfs
+    setvar "$var_return" $(zfs list -H -t filesystem -o mountpoint $zfs)
 }
 
 # snapname is used for both snapshots and bookmarks -- it is a unique
@@ -554,7 +555,7 @@ check_server_setup_for_client() {
     local mountpoint
 
     server_local_storage zfs "$clienthost"
-    mountpoint=$( zfs_to_path $zfs )
+    zfs_to_path mountpoint $zfs
     if [ -z $mountpoint ]; then
 	echo >&2 "$ME: FAIL Backup filesystem \"$mountpoint\" not mounted"
 	return 1
@@ -592,7 +593,7 @@ check_server_setup_for_filesystem() {
 	return 0
     fi
 
-    mountpoint=$( zfs_to_path $zfs )
+    zfs_to_path mountpoint $zfs
     echo >&2 "==> OK: zfs $zfs exists and is mounted as $mountpoint"
 
     # The ZFS exists -- so is it setup for use for backups?  Check for
