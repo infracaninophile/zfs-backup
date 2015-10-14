@@ -157,8 +157,12 @@ get_zpool() {
 }
 : ${ZPOOL:=$(get_zpool)}
 
-# Translate a filesystem path (which can contain all sorts of nasty
-# stuff) into a sanitized name we can use for a ZFS.
+
+# Generate the name of the ZFS used to store the backups server-side
+# given the host and filesystem.
+#
+# Translate the filesystem path (which can contain all sorts of nasty
+# stuff) into a sanitized directory name we can use for a ZFS.
 #
 # Note: According to the docs, a ZFS name can only consist of
 # characters from
@@ -169,14 +173,6 @@ get_zpool() {
 #
 # TODO: This is not guarranteed to generate a unique result, and
 # failure to do so will end badly.
-zfs_name() {
-    local filesystem="$1"
-
-    echo $filesystem | tr -c '[:alnum:]_:.-\n' _
-}
-
-# Generate the name of the ZFS used to store the backups server-side
-# given the host and filesystem.
 server_local_storage() {
     local var_return=$1
     local clienthost=$2
@@ -190,7 +186,7 @@ server_local_storage() {
 	path="/$clienthost"
 
 	if [ -n "$filesystem" ]; then
-	    path="$path/$( zfs_name $filesystem )"
+	    path="$path/$(echo $filesystem | tr -c '[:alnum:]_:.-\n' _)"
 	fi
     fi
     
