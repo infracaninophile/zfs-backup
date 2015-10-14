@@ -203,9 +203,10 @@ server_local_storage() {
 # client-side.  We make up our own ZFS devices and mountpoints
 # server-side, which should be mostly invisible to users.
 path_to_zfs() {
-    local path=$1
+    local var_return="$1"
+    local path="$2"
 
-    zfs list -H -t filesystem -o name $path
+    setvar "$var_return" $(zfs list -H -t filesystem -o name $path)
 }
 
 
@@ -327,7 +328,7 @@ list_tags() {
     local snapshots
     local zfs
 
-    zfs=$( path_to_zfs $filesystem )
+    path_to_zfs zfs $filesystem
     : ${zfs:?"${ME}: Can't find a ZFS mounted as filesystem \"$filesystem\""}
 
     snapshots=$( get_snapshots $zfs 'reversed' )
@@ -862,7 +863,7 @@ client_check() {
     local allow
     local allowedflags=0
 
-    zfs=$( path_to_zfs $filesystem )
+    path_to_zfs zfs $filesystem
     if [ -z "$zfs" ]; then
 	echo >&2 "$ME: FAIL filesystem \"$filesystem\" non-existent"
 	exit 1
@@ -964,7 +965,7 @@ client_backup() {
     local zfs
     
     snapname=$( generate_snapname )
-    zfs=$( path_to_zfs $filesystem )
+    path_to_zfs zfs $filesystem
     : ${zfs:?"${ME}: Can't find a ZFS mounted as filesystem \"$filesystem\""}
 
     snapprev=$( get_snapshot_by_tag $zfs $prevbackuptag )
@@ -1046,7 +1047,7 @@ client_full() {
     local zfs
 
     snapname=$( generate_snapname )
-    zfs=$( path_to_zfs $filesystem )
+    path_to_zfs zfs $filesystem
     : ${zfs:?"${ME}: Can't find a ZFS mounted as filesystem \"$filesystem\""}
     
     create_snapshot $zfs $snapname && send_zfs $zfs $snapname
@@ -1077,7 +1078,7 @@ client_nuke() {
     local bookmarks
     local zfs
 
-    zfs=$( path_to_zfs $filesystem )
+    path_to_zfs zfs $filesystem
     : ${zfs:?"${ME}: Can't find a ZFS mounted as filesystem \"$filesystem\""}
 
     snapshots=$( get_snapshots $zfs )
