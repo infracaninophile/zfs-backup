@@ -128,7 +128,7 @@ on_client() {
     else
 	compression_opt='no'
     fi
-        
+
     ssh -o BatchMode=yes -o IdentitiesOnly=yes -o IdentityFile=$BACKUPKEY \
 	-o Compression=$compression_opt $clientuser@$clienthost $COMMAND \
 	${1+$@} || exit 1
@@ -178,7 +178,7 @@ server_local_storage() {
     local clienthost=$2
     local filesystem=$3
     local path
-    
+
     # Without a hostname, the filesytem part is useless and will be
     # ignored.
 
@@ -189,7 +189,7 @@ server_local_storage() {
 	    path="$path/$(echo $filesystem | tr -c '[:alnum:]_:.-\n' _)"
 	fi
     fi
-    
+
     setvar "$var_return" "$ZPOOL$BACKUPROOT$path"
 }
 
@@ -230,7 +230,9 @@ zfs_to_path() {
 # different possibilities, which should be enough that we just don't
 # need to worry about collisions.
 generate_snapname() {
-    openssl rand -hex 8
+    local var_return="$1"
+
+    setvar "$var_return" $(openssl rand -hex 8)
 }
 
 # A regex to match the snapshot format.
@@ -273,7 +275,7 @@ create_snapshot() {
 delete_snapshot() {
     local zfs=$1
     local snapname=$2
-    
+
     if [ -z $option_n ]; then
 	runv zfs bookmark "$zfs@$snapname" "$zfs#$snapname"
     fi
@@ -295,7 +297,7 @@ get_snapshots() {
     else
 	sort_order='-S creation' # Reversed: newest first
     fi
-    
+
     zfs list -H -t snapshot $sort_order -o name -r $zfs | \
 	grep -E "@$snap_match"
 }
@@ -313,9 +315,9 @@ get_bookmarks() {
     else
 	sort_order='-S creation' # Reversed: newest first
     fi
-    
+
     zfs list -H -t bookmark $sort_order -o name -r $zfs | \
-	grep -E "#$snap_match" 
+	grep -E "#$snap_match"
 }
 
 # List the tags for all the backups (snapshots) known
@@ -329,7 +331,7 @@ list_tags() {
     : ${zfs:?"${ME}: Can't find a ZFS mounted as filesystem \"$filesystem\""}
 
     snapshots=$( get_snapshots $zfs 'reversed' )
-    
+
     for snap in $snapshots; do
 	get_tag_from $snap
     done
@@ -340,22 +342,22 @@ list_tags() {
 exclude_fs() {
     local exclude="$1"
     local IFS=
-    
+
     local re="^($( echo $exclude | tr ':' '|' ))\$"
 
     # A pure-shellish way of achieving the same sort of result:
     # Could be slow...
-    
+
     #for f in $ff ; do
     #	for e in $ee ; do
     #        if [ "$e" = "$f" ]; then
     #		continue 2
     #        fi
     #	done
-    #	
+    #
     #	echo $f
     #done
-    
+
     grep -vE "$re"
 }
 
@@ -375,7 +377,7 @@ server_list_fs() {
 
     local storage
     local filesystems
-    
+
     server_local_storage storage $clienthost
     zfs list -H -d 1 -o name $storage | exclude_fs $exclude
 }
@@ -392,13 +394,13 @@ client_filesystems() {
     local clientuser=$2
     local fslist="$3"
     local exclude="$4"
-    
+
     # ??? Change all the server_foo() functions to read the fslist on
     # ??? stdin
 
     # Set the list of filesystems to backup automatically, based on
     # properties set on the client machine.
-    
+
     if [ -z $fslist ]; then
 	fslist="$( on_client $clienthost $clientuser __list_fs $option_d )"
     fi
@@ -442,7 +444,7 @@ check_access() {
     local group
     local perms
     local backupgroups
-    
+
     owner=$(stat -f '%Su' $mountpoint)
     perms=$(stat -f '%SHp' $mountpoint)
 
@@ -498,7 +500,7 @@ check_access() {
 check_zfs_server_actions() {
     local zfs=$1
     local serveruser=$2
-    
+
     local allow
     local allowedflags=0
 
@@ -538,7 +540,7 @@ check_zfs_server_actions() {
 
     echo >&2 "==> OK: user $serveruser is allowed ZFS actions \"$allow\"" \
 	    "on $zfs"
-}    
+}
 
 
 # Check for the existence of the local filesystem that backups will be
@@ -560,9 +562,9 @@ check_server_setup_for_client() {
     fi
 
     check_zfs_server_actions $zfs $serveruser
-    
+
     check_access $serveruser $mountpoint
-    
+
     return 0
 }
 
@@ -579,7 +581,7 @@ check_server_setup_for_filesystem() {
     local zfs
     local zfs_state
     local mountpoint		# where it's backed up on the server
-    
+
     server_local_storage zfs $clienthost $filesystem
 
     # Does the ZFS exist at all?
@@ -639,7 +641,7 @@ server_check() {
 
     echo >&2 "--> Checking CLIENT $clienthost:"
 
-    server_ping "$option_h" "$option_u" || return 1 
+    server_ping "$option_h" "$option_u" || return 1
 
     for filesystem in $fslist ; do
 	on_client $clienthost $clientuser check \
@@ -652,7 +654,7 @@ server_check() {
 # actions.  Needs to be run as root on the client.
 generate_setup() {
     local clienthost=${1:?"Need a client hostname to backup"}
-    local clientuser=${2:?"Need a user to run the backups as on $clienthost"} 
+    local clientuser=${2:?"Need a user to run the backups as on $clienthost"}
     local fslist="${3:?\"Need a list of filesystems to backup on $clienthost\"}"
 
     local fs
@@ -662,7 +664,7 @@ generate_setup() {
     local scriptheader
 
     readonly dashes='----------------------------------------------------------------'
-    
+
     cat >&2 <<EOF
 $ME:
      Save the following commands to a file and run them as root on
@@ -672,7 +674,7 @@ $ME:
 $dashes
 EOF
 
-    # Script header 
+    # Script header
     scriptheader='#!/bin/sh -e
 '
 
@@ -692,7 +694,7 @@ chown $SERVERUSER $BACKUPKEY
 EOF
 	scriptheader=
     fi
-    
+
     # Create the top-level ${ZPOOL}/backup zfs if needed.  This mostly
     # exists to inherit stuff from.  Set some default properties that
     # everything else will inherit.
@@ -751,7 +753,7 @@ EOF
     fi
 
     # Check that the backup user is allowed the required actions on
-    # ${ZPOOL}/backup/$clienthost and add them if necessary 
+    # ${ZPOOL}/backup/$clienthost and add them if necessary
     if ! check_zfs_server_actions $zfs $SERVERUSER >/dev/null 2>&1 ; then
 	cat <<EOF
 $scriptheader
@@ -764,7 +766,7 @@ zfs allow $SERVERUSER create,destroy,mount,receive,snapshot $zfs
 EOF
 	scriptheader=
     fi
-    
+
     echo >&2 $dashes
 
     ### Client-side setup
@@ -780,8 +782,8 @@ $dashes
 EOF
 	return 0
     fi
-    
-    zfs_backup_pubkey=$( cat ${BACKUPKEY}.pub ) 
+
+    zfs_backup_pubkey=$( cat ${BACKUPKEY}.pub )
 
     # This is a gross hack.  Return the IP of the interface that has
     # had most outgoing trafic.  No guarantees that this is anything
@@ -836,14 +838,14 @@ fi
 # inherited).  To backup a whole hierarchy of ZFSes you only need to
 # mark the top level ZFS.  To omit some ZFSes from such a hierarchy
 # set the property as ${enable_prop}=no for them.
- 
-IFS=: 
+
+IFS=:
 for fs in $fslist ; do
     : \${ZFS:=\$(zfs list -H -t filesystem -o name \$fs)}
     zfs allow $clientuser bookmark,destroy,mount,send,snapshot \$ZFS
 
     # Mark the ZFS as being backed-up by this script
-    zfs set ${enable_prop}=yes \$ZFS 
+    zfs set ${enable_prop}=yes \$ZFS
 done
 
 EOF
@@ -948,7 +950,7 @@ send_zfs() {
 # $ZPOOL$BACKUPROOT/$hostname
 receive_stream() {
     local localstorage=$1
-    
+
     runv zfs receive $option_n $option_v -F $localstorage
 }
 
@@ -960,15 +962,15 @@ client_backup() {
     local snapname
     local bookmark
     local zfs
-    
-    snapname=$( generate_snapname )
+
+    generate_snapname snapname
     path_to_zfs zfs $filesystem
     : ${zfs:?"${ME}: Can't find a ZFS mounted as filesystem \"$filesystem\""}
 
     snapprev=$( get_snapshot_by_tag $zfs $prevbackuptag )
     : ${snapprev:?"${ME}: Can't find the snapshot matching tag" \
 		 "\"$prevbackuptag\""}
-    
+
     create_snapshot $zfs $snapname && \
         send_snapshot $zfs $snapprev $snapname && \
 	delete_snapshot $zfs $( get_tag_from $snapprev )
@@ -981,11 +983,11 @@ latest_common_backup() {
     local clienthost=$2
     local clientuser=$3
     local filesystem=$4
-   
+
     local clienttags
     local serversnap
     local prevbackuptag
-    
+
     clienttags=$(
 	on_client $clienthost $clientuser \
 		  __list_tags $option_d -F $filesystem
@@ -998,7 +1000,7 @@ latest_common_backup() {
 	    break
 	fi
     done
-    
+
     if [ -z $prevbackuptag ]; then
 	echo >&2 "${ME}: Fatal -- no previous backup of $filesystem exists." \
 		 "Cannot generate delta"
@@ -1025,7 +1027,7 @@ server_backup() {
 	#
 	# Note 2: the '__list_tags' action returns the tags with the
 	# newest first, ie. sorted in reverse order.
-	
+
 	server_local_storage localstorage $clienthost $filesystem
 	prevbackuptag=$( latest_common_backup $localstorage \
 				  $clienthost $clientuser $filesystem )
@@ -1043,10 +1045,10 @@ client_full() {
     local snapname
     local zfs
 
-    snapname=$( generate_snapname )
+    generate_snapname snapname
     path_to_zfs zfs $filesystem
     : ${zfs:?"${ME}: Can't find a ZFS mounted as filesystem \"$filesystem\""}
-    
+
     create_snapshot $zfs $snapname && send_zfs $zfs $snapname
 }
 
@@ -1079,7 +1081,7 @@ client_nuke() {
     : ${zfs:?"${ME}: Can't find a ZFS mounted as filesystem \"$filesystem\""}
 
     snapshots=$( get_snapshots $zfs )
-    
+
     for object in $snapshots ; do
 	runv zfs destroy $option_n $option_v $object
     done
@@ -1109,7 +1111,7 @@ server_nuke() {
 	server_local_storage localstorage $clienthost $filesystem
 
 	runv zfs destroy -r $option_n $option_v $localstorage
-    
+
 	on_client $clienthost $clientuser nuke $option_d $option_n \
 		  $option_v -F $filesystem
     done
@@ -1133,7 +1135,7 @@ command_line() {
     local action_opts=$1
 
     shift;
-    
+
     option_d=
     option_e=
     option_f=
@@ -1143,7 +1145,7 @@ command_line() {
     option_p=
     option_u=
     option_v=
-            
+
     while getopts $action_opts arg; do
 	case $arg in
 	    d)			# debug mode
@@ -1182,7 +1184,7 @@ command_line() {
 		;;
 	esac
     done
-    
+
     shift $(($OPTIND - 1))
 }
 
@@ -1191,7 +1193,7 @@ command_line() {
 #
 
 if [ -n "$SSH_ORIGINAL_COMMAND" ]; then
-    # forced command from authorised_keys 
+    # forced command from authorised_keys
     ON_CLIENT='yes'
     : >&2 "Debug: SSH_ORIGINAL_COMMAND=$SSH_ORIGINAL_COMMAND"
     set -- $SSH_ORIGINAL_COMMAND
