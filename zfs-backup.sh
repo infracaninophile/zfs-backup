@@ -290,8 +290,9 @@ delete_snapshot() {
 # filesystem will differ depending on whether we're on the client or
 # the server.
 get_snapshots() {
-    local zfs=$1
-    local reversed=$2
+    local var_return="$1"
+    local zfs="$2"
+    local reversed="$3"
     local sort_order
 
     if [ -z "$reversed" ]; then
@@ -300,16 +301,18 @@ get_snapshots() {
 	sort_order='-S creation' # Reversed: newest first
     fi
 
-    zfs list -H -t snapshot $sort_order -o name -r $zfs | \
-	grep -E "@$snap_match"
+    setvar "$var_return" \
+	   $( zfs list -H -t snapshot $sort_order -o name -r $zfs | \
+		    grep -E "@$snap_match" )
 }
 
 # All the zfs-backup related bookmarks for a zpecific ZFS -- the
 # filesystem would differ depending on whether we were on the client
 # or the server, but bookmarks should only exist on the client.
 get_bookmarks() {
-    local zfs=$1
-    local reversed=$2
+    local var_return="$1"
+    local zfs="$2"
+    local reversed="$3"
     local sort_order
 
     if [ -z "$reversed" ]; then
@@ -318,7 +321,8 @@ get_bookmarks() {
 	sort_order='-S creation' # Reversed: newest first
     fi
 
-    zfs list -H -t bookmark $sort_order -o name -r $zfs | \
+    setvar "$var_return" \
+	   zfs list -H -t bookmark $sort_order -o name -r $zfs | \
 	grep -E "#$snap_match"
 }
 
@@ -332,7 +336,7 @@ list_tags() {
     path_to_zfs zfs $filesystem
     : ${zfs:?"${ME}: Can't find a ZFS mounted as filesystem \"$filesystem\""}
 
-    snapshots=$( get_snapshots $zfs 'reversed' )
+    get_snapshots snapshots $zfs 'reversed' )
 
     for snap in $snapshots; do
 	get_tag_from $snap
@@ -598,7 +602,7 @@ check_server_setup_for_filesystem() {
 
     # The ZFS exists -- so is it setup for use for backups?  Check for
     # existence of snapshots matching our naming convention
-    zfs_state=$( get_snapshots $zfs )
+    get_snapshots zfs_state $zfs
     if [ -z "$zfs_state" ]; then
 	echo >&2 "==> FAIL: zfs $zfs exists but does not contain any" \
 		 "previous full or incremental backup."
@@ -1082,14 +1086,14 @@ client_nuke() {
     path_to_zfs zfs $filesystem
     : ${zfs:?"${ME}: Can't find a ZFS mounted as filesystem \"$filesystem\""}
 
-    snapshots=$( get_snapshots $zfs )
+    get_snapshots snapshots $zfs
 
     for object in $snapshots ; do
 	runv zfs destroy $option_n $option_v $object
     done
 
     # Apparently you can't use -n or -v with 'zfs destroy zfs#bookmark'
-    bookmarks=$( get_bookmarks $zfs )
+    get_bookmarks bookmarks $zfs
 
     if [ -z $option_n ]; then
 	for object in $bookmarks ; do
