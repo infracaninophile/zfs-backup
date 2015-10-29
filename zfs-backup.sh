@@ -250,10 +250,12 @@ get_tag_from() {
 
 # return the list of full snapshot names matching the specified tag
 get_snapshot_by_tag() {
-    local zfs=$1
-    local tag=$2
+    local var_return="$1"
+    local zfs="$2"
+    local tag="$3"
 
-    zfs list -H -r -t snapshot -o name $zfs | grep -E "@$tag\$"
+    setvar "$var_return" \
+	   $(zfs list -H -r -t snapshot -o name $zfs | grep -E "@$tag\$")
 }
 
 # Create a snapshot
@@ -967,7 +969,7 @@ client_backup() {
     path_to_zfs zfs $filesystem
     : ${zfs:?"${ME}: Can't find a ZFS mounted as filesystem \"$filesystem\""}
 
-    snapprev=$( get_snapshot_by_tag $zfs $prevbackuptag )
+    get_snapshot_by_tag snapprev $zfs $prevbackuptag
     : ${snapprev:?"${ME}: Can't find the snapshot matching tag" \
 		 "\"$prevbackuptag\""}
 
@@ -994,7 +996,7 @@ latest_common_backup() {
 	      )
 
     for tag in $clienttags; do
-	serversnap=$( get_snapshot_by_tag $localstorage $tag )
+	get_snapshot_by_tag serversnap $localstorage $tag
 	if [ $serversnap ]; then
 	    prevbackuptag=$tag
 	    break
