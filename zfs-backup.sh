@@ -1242,10 +1242,10 @@ case $ACTION in
 	;;
     backup)
 	if [ "$ON_CLIENT" = 'yes' ]; then
-	    command_line "de:F:p:t:vz" "$@"
+	    command_line "de:F:np:t:vz" "$@"
 	    client_backup "$option_F" "$option_p"
 	else
-	    command_line "de:f:h:t:u:vz" "$@"
+	    command_line "de:f:h:nt:u:vz" "$@"
 	    fslist=$( client_filesystems "$option_h" "$option_u" "$option_f" \
 					 "$option_e" )
 	    server_backup "$option_h" "$option_u" "$fslist"
@@ -1264,10 +1264,10 @@ case $ACTION in
 	;;
     full)
 	if [ "$ON_CLIENT" = 'yes' ]; then
-	    command_line "de:F:t:vz" "$@"
+	    command_line "de:F:nt:vz" "$@"
 	    client_full "$option_F"
 	else
-	    command_line "de:f:h:t:u:vz" "$@"
+	    command_line "de:f:h:nt:u:vz" "$@"
 	    fslist=$( client_filesystems "$option_h" "$option_u" "$option_f" \
 					 "$option_e" )
 	    server_full "$option_h" "$option_u" "$fslist"
@@ -1285,10 +1285,10 @@ case $ACTION in
 	;;
     nuke)
 	if [ "$ON_CLIENT" = 'yes' ]; then
-	    command_line "de:F:t:v" "$@"
+	    command_line "de:F:nt:v" "$@"
 	    client_nuke "$option_F"
 	else
-	    command_line "de:f:h:t:u:v" "$@"
+	    command_line "de:f:h:nt:u:v" "$@"
 	    fslist=$( client_filesystems "$option_h" "$option_u" "$option_f" \
 					 "$option_e" )
 	    server_nuke "$option_h" "$option_u" "$fslist"
