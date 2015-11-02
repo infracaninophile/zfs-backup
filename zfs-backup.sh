@@ -407,9 +407,6 @@ client_filesystems() {
     local fslist="$3"
     local exclude="$4"
 
-    # ??? Change all the server_foo() functions to read the fslist on
-    # ??? stdin
-
     # Set the list of filesystems to backup automatically, based on
     # properties set on the client machine.
 
@@ -640,14 +637,13 @@ check_server_setup_for_filesystem() {
 server_check() {
     local clienthost=${1:?"${ME}: Need a hostname to backup"}
     local clientuser=${2:?"${ME}: Need a username to run as on the client"}
-    local fslist="${3:?\"${ME}: Need a list of filesystems to backup\"}"
     local filesystem
 
     echo >&2 "==> Checking SERVER:"
 
     check_server_setup_for_client $clienthost $SERVERUSER
 
-    for fs in $fslist ; do
+    while read filesystem ; do
 	check_server_setup_for_filesystem $clienthost $SERVERUSER $filesystem
     done
 
@@ -950,7 +946,7 @@ send_zfs() {
     local snapname=$2
 
     runv zfs send $option_n $option_v "$zfs@$snapname" || \
-	runv zfs destroy "$zfs@$snapname"
+	runv zfs destroy $option_n "$zfs@$snapname"
 }
 
 # (on the backup server) Receive a filesystem or an incremental update
@@ -1026,12 +1022,11 @@ latest_common_backup() {
 server_backup() {
     local clienthost=${1:?"${ME}: Need a hostname to backup"}
     local clientuser=${2:?"${ME}: Need a username to run as on the client"}
-    local fslist="${3:?\"${ME}: Need a list of filesystems to backup\"}"
+    local filesystem
     local localstorage
     local prevbackuptag
-    local filesystem
 
-    for filesystem in $fslist ; do
+    while read filesystem ; do
 	# Find the tag for the latest locally held backup for this
 	# host and filesystem, by comparing against the list of tags
 	# extracted from the client.  If no such backup exists, then
@@ -1069,14 +1064,13 @@ client_full() {
 server_full() {
     local clienthost=${1:?"${ME}: Need a hostname to backup"}
     local clientuser=${2:?"${ME}: Need a username to run as on the client"}
-    local fslist="${3:?\"${ME}: Need a filesystem to backup\"}"
-
+    local filesystem
     local localstorage
 
-    for fs in $fslist ; do
-	server_local_storage localstorage $clienthost $fs
+    while read filesystem ; do
+	server_local_storage localstorage $clienthost $filesystem
 	on_client $clienthost $clientuser full $option_d $option_n \
-		  $option_v -F $fs | \
+		  $option_v -F $filesystem | \
 	    receive_stream $localstorage
     done
 }
@@ -1116,10 +1110,10 @@ client_nuke() {
 server_nuke() {
     local clienthost=${1:?"${ME}: Need a hostname to destroy backups for"}
     local clientuser=${2:?"${ME}: Need a username to run as on the client"}
-    local fslist="${3:?\"${ME}: Need a list of filesystems to destroy backups for\"}"
+    local filesystem
     local localstorage
 
-    for filesystem in $fslist ; do
+    while read filesystem ; do
 	server_local_storage localstorage $clienthost $filesystem
 
 	runv zfs destroy -r $option_n $option_v $localstorage
@@ -1132,10 +1126,10 @@ server_nuke() {
 # Show a report of all the backups for the given host and filesystem
 server_list_backups() {
     local clienthost=${1:?"${ME}: Need a hostname to list backups for"}
-    local fslist=${2:?"${ME}: Need a list of filesystems to list backups for"}
+    local filesystem
     local localstorage
 
-    for filesystem in $fslist ; do
+    while read filesystem ; do
 	server_local_storage localstorage "$clienthost" "$filesystem"
 
 	runv zfs list -t all -o name,creation,used,mountpoint -r $localstorage
@@ -1246,9 +1240,9 @@ case $ACTION in
 	    client_backup "$option_F" "$option_p"
 	else
 	    command_line "de:f:h:nt:u:vz" "$@"
-	    fslist=$( client_filesystems "$option_h" "$option_u" "$option_f" \
-					 "$option_e" )
-	    server_backup "$option_h" "$option_u" "$fslist"
+	    client_filesystems "$option_h" "$option_u" "$option_f" \
+			       "$option_e" | \
+		server_backup "$option_h" "$option_u"
 	fi
 	;;
     check)
@@ -1257,9 +1251,9 @@ case $ACTION in
 	    client_check "$option_u" "$option_F"
 	else
 	    command_line "de:f:h:t:u:vz" "$@"
-	    fslist=$( client_filesystems "$option_h" "$option_u" "$option_f" \
-					 "$option_e" )
-	    server_check "$option_h" "$option_u" "$fslist"
+	    client_filesystems "$option_h" "$option_u" "$option_f" \
+			       "$option_e" | \
+		server_check "$option_h" "$option_u"
 	fi
 	;;
     full)
@@ -1268,9 +1262,9 @@ case $ACTION in
 	    client_full "$option_F"
 	else
 	    command_line "de:f:h:nt:u:vz" "$@"
-	    fslist=$( client_filesystems "$option_h" "$option_u" "$option_f" \
-					 "$option_e" )
-	    server_full "$option_h" "$option_u" "$fslist"
+	    client_filesystems "$option_h" "$option_u" "$option_f" \
+			       "$option_e" | \
+		server_full "$option_h" "$option_u"
 	fi
 	;;
     list)
@@ -1278,9 +1272,9 @@ case $ACTION in
 	    :
 	else
 	    command_line "de:f:h:t:vz" "$@"
-	    fslist=$( client_filesystems "$option_h" "$option_u" "$option_f" \
-					 "$option_e" )
-	    server_list_backups "$option_h" "$fslist"
+	    client_filesystems "$option_h" "$option_u" "$option_f" \
+			       "$option_e" | \
+		server_list_backups "$option_h"
 	fi
 	;;
     nuke)
@@ -1289,9 +1283,9 @@ case $ACTION in
 	    client_nuke "$option_F"
 	else
 	    command_line "de:f:h:nt:u:v" "$@"
-	    fslist=$( client_filesystems "$option_h" "$option_u" "$option_f" \
-					 "$option_e" )
-	    server_nuke "$option_h" "$option_u" "$fslist"
+	    client_filesystems "$option_h" "$option_u" "$option_f" \
+			       "$option_e" | \
+		server_nuke "$option_h" "$option_u"
 	fi
 	;;
     ping)
@@ -1310,8 +1304,8 @@ case $ACTION in
 	    # Print commands to run as root -- server side only
 	    command_line "de:f:h:t:u:v" "$@"
 
-	    ### Can't use the normal fslist, because we haven't set up
-	    ### the filesystem tags yet ...
+	    ### Can't use the normal client_filesystems(), because we
+	    ### haven't set up the filesystem tags yet ...
 	    generate_setup "$option_h" "$option_u" "$option_f" # @@@
 	fi
 	;;
