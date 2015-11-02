@@ -202,7 +202,7 @@ path_to_zfs() {
     local var_return="$1"
     local path="$2"
 
-    setvar "$var_return" $(zfs list -H -t filesystem -o name $path)
+    setvar "$var_return" "$(zfs list -H -t filesystem -o name $path)"
 }
 
 
@@ -212,7 +212,7 @@ zfs_to_path() {
     local var_return="$1"
     local zfs="$2"
 
-    setvar "$var_return" $(zfs list -H -t filesystem -o mountpoint $zfs)
+    setvar "$var_return" "$(zfs list -H -t filesystem -o mountpoint $zfs)"
 }
 
 # snapname is used for both snapshots and bookmarks -- it is a unique
@@ -232,7 +232,7 @@ zfs_to_path() {
 generate_snapname() {
     local var_return="$1"
 
-    setvar "$var_return" $(openssl rand -hex 8)
+    setvar "$var_return" "$(openssl rand -hex 8)"
 }
 
 # A regex to match the snapshot format.
@@ -253,9 +253,11 @@ get_snapshot_by_tag() {
     local var_return="$1"
     local zfs="$2"
     local tag="$3"
+    local snapshots
 
-    setvar "$var_return" \
-	   $(zfs list -H -r -t snapshot -o name $zfs | grep -E "@$tag\$")
+    snapshots=$(zfs list -H -r -t snapshot -o name $zfs | grep -E "@$tag\$")
+
+    setvar "$var_return" "$snapshots"
 }
 
 # Create a snapshot
@@ -294,6 +296,7 @@ get_snapshots() {
     local zfs="$2"
     local reversed="$3"
     local sort_order
+    local snapshots
 
     if [ -z "$reversed" ]; then
 	sort_order='-s creation' # Oldest first
@@ -301,9 +304,10 @@ get_snapshots() {
 	sort_order='-S creation' # Reversed: newest first
     fi
 
-    setvar "$var_return" \
-	   $( zfs list -H -t snapshot $sort_order -o name -r $zfs | \
-		    grep -E "@$snap_match" )
+    snapshots=$( zfs list -H -t snapshot $sort_order -o name -r $zfs | \
+		       grep -E "@$snap_match" )
+
+    setvar "$var_return" "$snapshots"
 }
 
 # All the zfs-backup related bookmarks for a zpecific ZFS -- the
@@ -314,6 +318,7 @@ get_bookmarks() {
     local zfs="$2"
     local reversed="$3"
     local sort_order
+    local bookmarks
 
     if [ -z "$reversed" ]; then
 	sort_order='-s creation' # Oldest first
@@ -321,9 +326,10 @@ get_bookmarks() {
 	sort_order='-S creation' # Reversed: newest first
     fi
 
-    setvar "$var_return" \
-	   zfs list -H -t bookmark $sort_order -o name -r $zfs | \
-	grep -E "#$snap_match"
+    bookmarks=$( zfs list -H -t bookmark $sort_order -o name -r $zfs | \
+		       grep -E "#$snap_match" )
+
+    setvar "$var_return" "$bookmarks"
 }
 
 # List the tags for all the backups (snapshots) known
@@ -336,7 +342,7 @@ list_tags() {
     path_to_zfs zfs $filesystem
     : ${zfs:?"${ME}: Can't find a ZFS mounted as filesystem \"$filesystem\""}
 
-    get_snapshots snapshots $zfs 'reversed' )
+    get_snapshots snapshots $zfs 'reversed'
 
     for snap in $snapshots; do
 	get_tag_from $snap
