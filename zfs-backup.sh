@@ -18,7 +18,7 @@ ${ME}: Usage:
     $ME backup [-dnvz] -h hostname -u user [-f filesystem:...] [-e filesystem:...]
     $ME check [-dvz] -h hostname -u user [-f filesystem:...] [-e filesystem:...]
     $ME full [-dnvz] -h hostname -u user [-f filesystem:...] [-e filesystem:...]
-    $ME list [-dvz] [-h hostname] [-f filesystem:...] [-e filesystem:...]
+    $ME list [-dvz] [-h hostname] [-u user ] [-f filesystem:...] [-e filesystem:...]
     $ME nuke [-dnv] -h hostname -u user [-f filesystem:...] [-e filesystem:...]
     $ME ping -h hostname -u user
     $ME setup [-d] -h hostname -u user -f filesystem:... [-e filesystem:...]
@@ -61,7 +61,9 @@ overwrite an existing ZFS will fail.
 
 '$ME list' lists the snapshots available on the backup server,
 optionally limiting the output to what is available a specific host or
-a specific host and filesystem.
+a specific host and filesystem.  If no filesystems are given
+explicitly on the command line, needs the '-u user' to be specified in
+order to retreive the list of backed-up filesystems from the client.
 
 '$ME nuke' Deletes all backups for the given filesystem of the named
 host.  Deletes all backup related snapshots or bookmarks for that
@@ -1271,7 +1273,7 @@ case $ACTION in
 	if [ "$ON_CLIENT" = 'yes' ]; then # server side only
 	    :
 	else
-	    command_line "de:f:h:t:vz" "$@"
+	    command_line "de:f:h:t:u:vz" "$@"
 	    client_filesystems "$option_h" "$option_u" "$option_f" \
 			       "$option_e" | \
 		server_list_backups "$option_h"
