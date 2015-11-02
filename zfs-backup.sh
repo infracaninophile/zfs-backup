@@ -296,7 +296,7 @@ get_snapshots() {
     local zfs="$2"
     local reversed="$3"
     local sort_order
-    local snapshots
+    local snapsh
 
     if [ -z "$reversed" ]; then
 	sort_order='-s creation' # Oldest first
@@ -304,10 +304,10 @@ get_snapshots() {
 	sort_order='-S creation' # Reversed: newest first
     fi
 
-    snapshots=$( zfs list -H -t snapshot $sort_order -o name -r $zfs | \
+    snapsh=$( zfs list -H -t snapshot $sort_order -o name -r $zfs | \
 		       grep -E "@$snap_match" )
 
-    setvar "$var_return" "$snapshots"
+    setvar "$var_return" "$snapsh"
 }
 
 # All the zfs-backup related bookmarks for a zpecific ZFS -- the
