@@ -127,7 +127,7 @@ on_client() {
     shift 2
 
     ssh -o BatchMode=yes -o IdentitiesOnly=yes -o IdentityFile=$BACKUPKEY \
-	-o Compression=$compression_opt $clientuser@$clienthost $COMMAND \
+	-o Compression=$option_z $clientuser@$clienthost $COMMAND \
 	${1+$@} || exit 1
 }
 
