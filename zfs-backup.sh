@@ -641,19 +641,13 @@ server_check() {
     local clientuser=${2:?"${ME}: Need a username to run as on the client"}
     local filesystem
 
-    echo >&2 "==> Checking SERVER:"
+    echo >&2 "==> Checking SERVER setup:"
 
     check_server_setup_for_client $clienthost $SERVERUSER
 
     while read filesystem ; do
+	echo >&2 "==> Checking FILESYSTEM $filesystem:"
 	check_server_setup_for_filesystem $clienthost $SERVERUSER $filesystem
-    done
-
-    echo >&2 "--> Checking CLIENT $clienthost:"
-
-    server_ping "$option_h" "$option_u" || return 1
-
-    for filesystem in $fslist ; do
 	on_client $clienthost $clientuser check \
 		  $option_d $option_v -u $clientuser -F $filesystem
     done
@@ -1252,7 +1246,12 @@ case $ACTION in
 	    command_line "de:F:t:u:vz" "$@"
 	    client_check "$option_u" "$option_F"
 	else
+	    # Need to do the server_ping() bit *before* running
+	    # client_filesystems(), as that may need to use ssh to
+	    # interrogate the client host.
+
 	    command_line "de:f:h:t:u:vz" "$@"
+	    server_ping "$option_h" "$option_u" || exit 1
 	    client_filesystems "$option_h" "$option_u" "$option_f" \
 			       "$option_e" | \
 		server_check "$option_h" "$option_u"
