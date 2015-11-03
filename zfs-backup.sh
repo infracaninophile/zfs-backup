@@ -285,15 +285,17 @@ delete_snapshot() {
 }
 
 
-# All the zfs-backup related snapshots for a specific ZFS -- the
-# filesystem will differ depending on whether we're on the client or
-# the server.
-get_snapshots() {
+# All the zfs-backup related snapshots or bookmarks for a specific ZFS
+# -- the filesystem will differ depending on whether we're on the
+# client or the server.
+get_zfs_objects() {
     local var_return="$1"
-    local zfs="$2"
-    local reversed="$3"
+    local type="$2"
+    local zfs="$3"
+    local reversed="$4"
     local sort_order
     local snapsh
+    local type
 
     if [ -z "$reversed" ]; then
 	sort_order='-s creation' # Oldest first
@@ -301,33 +303,22 @@ get_snapshots() {
 	sort_order='-S creation' # Reversed: newest first
     fi
 
-    snapsh=$( zfs list -H -t snapshot $sort_order -o name -r $zfs | \
+    case $type in
+	bookmark|snapshot)
+	    ;;
+	*)
+	    echo >&2 "$ME: $type not understood:" \
+		     "try one of 'bookmark' or 'snapshot'"
+	    exit 1
+	    ;;
+    esac
+
+    snapsh=$( zfs list -H -t $type $sort_order -o name -r $zfs | \
 		       grep -E "@$snap_match" )
 
     setvar "$var_return" "$snapsh"
 }
 
-# All the zfs-backup related bookmarks for a zpecific ZFS -- the
-# filesystem would differ depending on whether we were on the client
-# or the server, but bookmarks should only exist on the client.
-get_bookmarks() {
-    local var_return="$1"
-    local zfs="$2"
-    local reversed="$3"
-    local sort_order
-    local bookmarks
-
-    if [ -z "$reversed" ]; then
-	sort_order='-s creation' # Oldest first
-    else
-	sort_order='-S creation' # Reversed: newest first
-    fi
-
-    bookmarks=$( zfs list -H -t bookmark $sort_order -o name -r $zfs | \
-		       grep -E "#$snap_match" )
-
-    setvar "$var_return" "$bookmarks"
-}
 
 # List the tags for all the backups (snapshots) known
 # on the named filesystem, *newest* first.
@@ -339,7 +330,7 @@ list_tags() {
     path_to_zfs zfs $filesystem
     : ${zfs:?"${ME}: Can't find a ZFS mounted as filesystem \"$filesystem\""}
 
-    get_snapshots snapshots $zfs 'reversed'
+    get_zfs_objects snapshots 'snapshot' $zfs 'reversed'
 
     for snap in $snapshots; do
 	get_tag_from $snap
@@ -602,7 +593,7 @@ check_server_setup_for_filesystem() {
 
     # The ZFS exists -- so is it setup for use for backups?  Check for
     # existence of snapshots matching our naming convention
-    get_snapshots zfs_state $zfs
+    get_zfs_objects zfs_state 'snapshot' $zfs
     if [ -z "$zfs_state" ]; then
 	echo >&2 "==> FAIL: zfs $zfs exists but does not contain any" \
 		 "previous full or incremental backup."
@@ -1077,14 +1068,14 @@ client_nuke() {
     path_to_zfs zfs $filesystem
     : ${zfs:?"${ME}: Can't find a ZFS mounted as filesystem \"$filesystem\""}
 
-    get_snapshots snapshots $zfs
+    get_zfs_objects snapshots 'snapshot' $zfs
 
     for object in $snapshots ; do
 	runv zfs destroy $option_n $option_v $object
     done
 
     # Apparently you can't use -n or -v with 'zfs destroy zfs#bookmark'
-    get_bookmarks bookmarks $zfs
+    get_zfs_objects bookmarks 'bookmark' $zfs
 
     if [ -z $option_n ]; then
 	for object in $bookmarks ; do
