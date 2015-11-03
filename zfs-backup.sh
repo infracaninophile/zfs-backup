@@ -45,7 +45,7 @@ is only retained until the following backup completes.  The snapshot
 is copied over to the server by the backup process: hence the server
 will contain the history of previous backups as a series of snapshots.
 Unless a filesystem is given explicitly on the command line, this
-defaults tooperating on all filesystems with the property
+defaults to operating on all filesystems with the property
 '${enable_prop}' set to 'yes'.
 
 '$ME check' reports on the settings both server and client side,
@@ -62,8 +62,9 @@ overwrite an existing ZFS will fail.
 '$ME list' lists the snapshots available on the backup server,
 optionally limiting the output to what is available a specific host or
 a specific host and filesystem.  If no filesystems are given
-explicitly on the command line, needs the '-u user' to be specified in
-order to retreive the list of backed-up filesystems from the client.
+explicitly on the command line, needs the '-u user' option to be
+specified in order to retreive the list of backed-up filesystems from
+the client.
 
 '$ME nuke' Deletes all backups for the given filesystem of the named
 host.  Deletes all backup related snapshots or bookmarks for that
@@ -124,12 +125,6 @@ on_client() {
     local clienthost=$1
     local clientuser=$2
     shift 2
-
-    if [ -n "$option_z" ]; then
-        compression_opt='yes'
-    else
-	compression_opt='no'
-    fi
 
     ssh -o BatchMode=yes -o IdentitiesOnly=yes -o IdentityFile=$BACKUPKEY \
 	-o Compression=$compression_opt $clientuser@$clienthost $COMMAND \
@@ -1147,6 +1142,7 @@ command_line() {
     option_p=
     option_u=
     option_v=
+    option_z="no"
 
     while getopts $action_opts arg; do
 	case $arg in
@@ -1179,7 +1175,7 @@ command_line() {
 		option_v="-v"
 		;;
 	    z)			# SSH compression
-		option_z="-z"
+		option_z="yes"
 		;;
 	    *)
 		usage
