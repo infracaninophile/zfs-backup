@@ -245,16 +245,17 @@ get_tag_from() {
 }
 
 
-# return the list of full snapshot names matching the specified tag
-get_snapshot_by_tag() {
+# return the list of full snapshot or bookmark names of previous
+# backups matching the specified tag
+get_prev_backup_by_tag() {
     local var_return="$1"
     local zfs="$2"
     local tag="$3"
-    local snapshots
+    local prevbackups
 
-    snapshots=$(zfs list -H -r -t snapshot -o name $zfs | grep -E "@$tag\$")
+    prevbackups=$(zfs list -H -r -t snapshot,bookmark -o name $zfs | grep -E "[@#]$tag\$")
 
-    setvar "$var_return" "$snapshots"
+    setvar "$var_return" "$prevbackups"
 }
 
 # Create a snapshot
@@ -294,7 +295,7 @@ get_zfs_objects() {
     local zfs="$3"
     local reversed="$4"
     local sort_order
-    local snapsh
+    local zobj
     local type
 
     if [ -z "$reversed" ]; then
@@ -304,36 +305,40 @@ get_zfs_objects() {
     fi
 
     case $type in
+	all)
+	    type='snapshot,bookmark'
+	    ;;
 	bookmark|snapshot)
 	    ;;
 	*)
 	    echo >&2 "$ME: $type not understood:" \
-		     "try one of 'bookmark' or 'snapshot'"
+		     "try one of 'all', 'bookmark' or 'snapshot'"
 	    exit 1
 	    ;;
     esac
 
-    snapsh=$( zfs list -H -t $type $sort_order -o name -r $zfs | \
-		       grep -E "@$snap_match" )
+    zobj=$( zfs list -H -t $type $sort_order -o name -r $zfs | \
+		  grep -E "[@#]$snap_match" )
 
-    setvar "$var_return" "$snapsh"
+    setvar "$var_return" "$zobj"
 }
 
 
-# List the tags for all the backups (snapshots) known
+# List the tags for all the backups (snapshots or bookmarks) known
 # on the named filesystem, *newest* first.
 list_tags() {
     local filesystem="${1:?\"${ME}: Need a filesystem to list backup tags for\"}"
-    local snapshots
+    local prevbackups
     local zfs
+    local backup
 
     path_to_zfs zfs $filesystem
     : ${zfs:?"${ME}: Can't find a ZFS mounted as filesystem \"$filesystem\""}
 
-    get_zfs_objects snapshots 'snapshot' $zfs 'reversed'
+    get_zfs_objects prevbackups all $zfs reversed
 
-    for snap in $snapshots; do
-	get_tag_from $snap
+    for backup in $prevbackups; do
+	get_tag_from $backup
     done
 }
 
@@ -947,27 +952,26 @@ receive_stream() {
 # Run the client side part of the backup
 client_backup() {
     local filesystem=${1:?"${ME}: Need a filesystem to backup"}
-    local prevbackuptag=${2:?"${ME}: Need a previous backup to create a" \
-			     "delta from"}
+    local prevbackuptag=${2:?"${ME}: Need a previous backup to create a delta from"}
     local snapname
-    local bookmark
+    local prevbackup
     local zfs
 
     generate_snapname snapname
     path_to_zfs zfs $filesystem
     : ${zfs:?"${ME}: Can't find a ZFS mounted as filesystem \"$filesystem\""}
 
-    get_snapshot_by_tag snapprev $zfs $prevbackuptag
-    : ${snapprev:?"${ME}: Can't find the snapshot matching tag" \
-		 "\"$prevbackuptag\""}
+    get_prev_backup_by_tag prevbackup $zfs $prevbackuptag
+    : ${prevbackup:?"${ME}: Can't find the snapshot matching tag \"$prevbackuptag\""}
 
     create_snapshot $zfs $snapname && \
-        send_snapshot $zfs $snapprev $snapname && \
-	delete_snapshot $zfs $( get_tag_from $snapprev )
+        send_snapshot $zfs $prevbackup $snapname && \
+	delete_snapshot $zfs $( get_tag_from $prevbackup )
 }
 
 # Find the tag of the most recent backup that is known both on the
-# client and in our local store.
+# client and in our local store.  Server-side this will always be a
+# snapshot.
 latest_common_backup() {
     local localstorage=$1
     local clienthost=$2
@@ -984,7 +988,7 @@ latest_common_backup() {
 	      )
 
     for tag in $clienttags; do
-	get_snapshot_by_tag serversnap $localstorage $tag
+	get_prev_backup_by_tag serversnap $localstorage $tag
 	if [ $serversnap ]; then
 	    prevbackuptag=$tag
 	    break
