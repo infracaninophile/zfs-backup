@@ -346,8 +346,6 @@ list_tags() {
 # also listed in the colon separated list $exclude.
 exclude_fs() {
     local exclude="$1"
-    local IFS=
-
     local re="^($( echo $exclude | tr ':' '|' ))\$"
 
     # A pure-shellish way of achieving the same sort of result:
@@ -407,11 +405,15 @@ client_filesystems() {
 	fslist="$( on_client $clienthost $clientuser __list_fs $option_d )"
     fi
 
-    # Convert : separated list to space separated list.
-    local IFS=:
-    for fs in $fslist ; do
-	echo $fs
-    done | exclude_fs "$exclude"
+    # Convert : separated list to space separated list.  do this in a
+    # sub-shell to avoid polluting the value of IFS elsewhere.
+    (
+	IFS=:
+	for fs in $fslist ; do
+	    echo $fs
+	done
+	IFS="$OIFS"
+    )  | exclude_fs "$exclude"
 }
 
 # Test SSH connectvity - server pings, and client pongs in reply.
@@ -834,7 +836,7 @@ fi
 # mark the top level ZFS.  To omit some ZFSes from such a hierarchy
 # set the property as ${enable_prop}=no for them.
 
-IFS=:
+IFS=$( printf " \t:\n" )
 for fs in $fslist ; do
     : \${ZFS:=\$(zfs list -H -t filesystem -o name \$fs)}
     zfs allow $clientuser bookmark,destroy,mount,send,snapshot \$ZFS
