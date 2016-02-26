@@ -412,7 +412,6 @@ client_filesystems() {
 	for fs in $fslist ; do
 	    echo $fs
 	done
-	IFS="$OIFS"
     )  | exclude_fs "$exclude"
 }
 
