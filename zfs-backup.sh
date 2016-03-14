@@ -253,7 +253,8 @@ get_prev_backup_by_tag() {
     local tag="$3"
     local prevbackups
 
-    prevbackups=$(zfs list -H -r -t snapshot,bookmark -o name $zfs | grep -E "[@#]$tag\$")
+    prevbackups=$(zfs list -H -d 1 -t snapshot,bookmark -o name $zfs | \
+			 grep -E "[@#]$tag\$")
 
     setvar "$var_return" "$prevbackups"
 }
