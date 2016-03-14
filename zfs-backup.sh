@@ -1225,7 +1225,7 @@ case $ACTION in
 	;;
     backup)
 	if [ "$ON_CLIENT" = 'yes' ]; then
-	    command_line "de:F:np:t:vz" "$@"
+	    command_line "de:F:np:vz" "$@"
 	    client_backup "$option_F" "$option_p"
 	else
 	    command_line "de:f:h:nt:u:vz" "$@"
@@ -1236,14 +1236,14 @@ case $ACTION in
 	;;
     check)
 	if [ "$ON_CLIENT" = 'yes' ]; then
-	    command_line "de:F:t:u:vz" "$@"
+	    command_line "de:F:u:vz" "$@"
 	    client_check "$option_u" "$option_F"
 	else
 	    # Need to do the server_ping() bit *before* running
 	    # client_filesystems(), as that may need to use ssh to
 	    # interrogate the client host.
 
-	    command_line "de:f:h:t:u:vz" "$@"
+	    command_line "de:f:h:u:vz" "$@"
 	    server_ping "$option_h" "$option_u" || exit 1
 	    client_filesystems "$option_h" "$option_u" "$option_f" \
 			       "$option_e" | \
@@ -1252,10 +1252,10 @@ case $ACTION in
 	;;
     full)
 	if [ "$ON_CLIENT" = 'yes' ]; then
-	    command_line "de:F:nt:vz" "$@"
+	    command_line "de:F:nvz" "$@"
 	    client_full "$option_F"
 	else
-	    command_line "de:f:h:nt:u:vz" "$@"
+	    command_line "de:f:h:nu:vz" "$@"
 	    client_filesystems "$option_h" "$option_u" "$option_f" \
 			       "$option_e" | \
 		server_full "$option_h" "$option_u"
@@ -1265,7 +1265,7 @@ case $ACTION in
 	if [ "$ON_CLIENT" = 'yes' ]; then # server side only
 	    :
 	else
-	    command_line "de:f:h:t:u:vz" "$@"
+	    command_line "de:f:h:u:vz" "$@"
 	    client_filesystems "$option_h" "$option_u" "$option_f" \
 			       "$option_e" | \
 		server_list_backups "$option_h"
@@ -1273,10 +1273,10 @@ case $ACTION in
 	;;
     nuke)
 	if [ "$ON_CLIENT" = 'yes' ]; then
-	    command_line "de:F:nt:v" "$@"
+	    command_line "de:F:nv" "$@"
 	    client_nuke "$option_F"
 	else
-	    command_line "de:f:h:nt:u:v" "$@"
+	    command_line "de:f:h:nu:v" "$@"
 	    client_filesystems "$option_h" "$option_u" "$option_f" \
 			       "$option_e" | \
 		server_nuke "$option_h" "$option_u"
@@ -1296,7 +1296,7 @@ case $ACTION in
 	    :			# Do nothing
 	else
 	    # Print commands to run as root -- server side only
-	    command_line "de:f:h:t:u:v" "$@"
+	    command_line "de:f:h:u:v" "$@"
 
 	    ### Can't use the normal client_filesystems(), because we
 	    ### haven't set up the filesystem tags yet ...
