@@ -317,7 +317,7 @@ get_zfs_objects() {
 	    ;;
     esac
 
-    zobj=$( zfs list -H -t $type $sort_order -o name -r $zfs | \
+    zobj=$( zfs list -H -t $type $sort_order -o name -d 1 $zfs | \
 		  grep -E "[@#]$snap_match" )
 
     setvar "$var_return" "$zobj"
