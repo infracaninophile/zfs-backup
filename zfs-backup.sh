@@ -297,7 +297,6 @@ get_zfs_objects() {
     local reversed="$4"
     local sort_order
     local zobj
-    local type
 
     if [ -z "$reversed" ]; then
 	sort_order='-s creation' # Oldest first
