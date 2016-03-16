@@ -1146,7 +1146,7 @@ command_line() {
 	    f)			# filesystem (can be repeated)
 		option_f="${option_f}${option_f:+:}$OPTARG"
 		;;
-	    F)			# A single filesystem (__list_tags only)
+	    F)			# A single filesystem (clientside only)
 		option_F=$OPTARG
 		;;
 	    h)			# host
