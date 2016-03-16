@@ -27,8 +27,8 @@ usage() {
 $ME: Usage:
     $ME __client
     $ME __list_tags [-d] -F filesystem
-    $ME mirror -h hostname -u user -f filesystem:...
-    $ME init -h hostname -u user -f filesystem:...
+    $ME mirror [-dnvz] -h hostname -u user -f filesystem:...
+    $ME init [-dnvz] -h hostname -u user -f filesystem:...
 
 '$ME __client' For internal use: should only be run as a forced
 command from the mirror user's authorized_keys file.  It takes no
@@ -459,7 +459,7 @@ case $ACTION in
 	    command_line "dF:nvz" "$@"
 	    receiver_mirror "$option_F"
 	else
-	    command_line "df:h:nu:z" "$@"
+	    command_line "df:h:nu:vz" "$@"
 	    sender_mirror "$option_h" "$option_u" "$option_f"
 	fi
 	;;
@@ -468,7 +468,7 @@ case $ACTION in
 	    command_line "dF:nvz" "$@"
 	    receiver_mirror "$option_F"
 	else
-	    command_line "df:h:nu:z" "$@"
+	    command_line "df:h:nu:vz" "$@"
 	    sender_init "$option_h" "$option_u" "$option_f"
 	fi
 	;;
