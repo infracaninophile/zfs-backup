@@ -259,7 +259,7 @@ latest_common_tag() {
 
     for sendertag in $sendertags ; do
 	for receivertag in $receivertags ; do
-	    if [ "$sendertag" = "$recevertag" ]; then
+	    if [ "$sendertag" = "$receivertag" ]; then
 		_prevmirrortag=$sendertag
 		break 2
 	    fi
