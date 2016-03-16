@@ -170,6 +170,90 @@ get_all_mirrors() {
     setvar "$var_return" "$zobj"
 }
 
+# The latest snapshot or bookmark tag already on the receiver
+receiver_last_mirror() {
+    local filesystem=${1?"${ME}: Need a filesystem for mirroring"}
+    local zfs
+    local lastmirror
+
+    path_to_zfs zfs $filesystem
+    : ${zfs:?"${ME}: Can't find a ZFS mounted as filesystem \"$filesystem\""}
+
+    get_latest_mirror lastmirror "$zfs"
+    get_tag_from "$lastmirror"
+}
+
+
+# This is used receiver-side for both mirroring and the initial copy
+# of the ZFS.
+receiver_mirror() {
+    local filesystem=${1?"${ME}: Need a filesystem for mirroring"}
+    local zfs
+
+    path_to_zfs zfs $filesystem
+    : ${zfs:?"${ME}: Can't find a ZFS mounted as filesystem \"$filesystem\""}
+
+    runv zfs receive $option_n $option_v -F $zfs
+}
+
+sender_mirror() {
+
+}
+
+sender_init() {
+
+}
+
+# Parse command line options -- maybe spoofed using $SSH_ORIGINAL_COMMAND
+command_line() {
+    local action_opts=$1
+
+    shift;
+
+    option_d=
+    option_f=
+    option_F=
+    option_h=
+    option_n=
+    option_u=
+    option_v=
+    option_z="no"
+
+    while getopts $action_opts arg; do
+	case $arg in
+	    d)			# debug mode
+		option_d=-d
+		set -x
+		;;
+	    f)			# filesystem (can be repeated)
+		option_f="${option_f}${option_f:+ }$OPTARG"
+		;;
+	    F)			# A single filesystem (receiver only)
+		option_F=$OPTARG
+		;;
+	    h)			# host
+		option_h=$OPTARG
+		;;
+	    n)			# dry-run
+		option_n="-n"
+		;;
+	    u)			# user
+		option_u=$OPTARG
+		;;
+	    v)			# verbose
+		option_v="-v"
+		;;
+	    z)			# SSH compression
+		option_z="yes"
+		;;
+	    *)
+		usage
+		;;
+	esac
+    done
+
+    shift $(($OPTIND - 1))
+}
 
 #
 # Main program starts here
@@ -198,7 +282,7 @@ case $ACTION in
     __last_mirror)
 	if [ "$ON_RECEIVER" = 'yes' ]; then
 	    command_line "dF:" "$@"
-	    last_mirror "$option_F"
+	    receiver_last_mirror "$option_F"
 	else
 	    :			# Do nothing sender-side
 	fi
@@ -206,10 +290,19 @@ case $ACTION in
     mirror)
 	if [ "$ON_RECEIVER" = 'yes' ]; then
 	    command_line "dF:nvz" "$@"
-	    receiver_mirror "$option_F" "$option_p"
+	    receiver_mirror "$option_F"
 	else
 	    command_line "df:h:nu:z" "$@"
 	    sender_mirror "$option_h" "$option_u" "$option_f"
+	fi
+	;;
+    init)
+	if [ "$ON_RECEIVER" = 'yes' ]; then
+	    command_line "dF:nvz" "$@"
+	    receiver_mirror "$option_F"
+	else
+	    command_line "df:h:nu:z" "$@"
+	    sender_init "$option_h" "$option_u" "$option_f"
 	fi
 	;;
     *)
