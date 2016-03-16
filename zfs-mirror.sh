@@ -106,16 +106,17 @@ runv() {
 }
 
 # Identify which ZFS is mounted containing the path of interest (not
-# limited to ZFS mountpoints).
+# limited to ZFS mountpoints).  Beware of having a local variable of
+# the same name as passed in via $var_return -- that doesn't end well.
 path_to_zfs() {
     local var_return="$1"
     local path="$2"
-    local zfs
+    local _zfs
 
-    zfs=$(zfs list -H -t filesystem -o name $path)
-    : ${zfs:?${ME}: Cannot find a ZFS mounted as filesystem \"$path\"}
+    _zfs=$(zfs list -H -t filesystem -o name $path)
+    : ${_zfs:?${ME}: Cannot find a ZFS mounted as filesystem \"$path\"}
 
-    setvar "$var_return" "$zfs"
+    setvar "$var_return" "$_zfs"
 }
 
 
@@ -125,12 +126,12 @@ path_to_zfs() {
 zfs_to_path() {
     local var_return="$1"
     local zfs="$2"
-    local mountpoint
+    local _mountpoint
 
-    mountpoint=$(zfs list -H -t filesystem -o mountpoint $zfs)
-    : ${mountpoint:?${ME}: Cannot find a mountpoint for ZFS \"$zfs\"}
+    _mountpoint=$(zfs list -H -t filesystem -o mountpoint $zfs)
+    : ${_mountpoint:?${ME}: Cannot find a mountpoint for ZFS \"$zfs\"}
 
-    setvar "$var_return" "$mountpoint"
+    setvar "$var_return" "$_mountpoint"
 }
 
 # A unique snapname is used for each mirrored zfs -- the snapname is
@@ -185,7 +186,7 @@ get_all_mirrors() {
     local order="$4"
 
     local sort_order
-    local zobj
+    local _zobj
 
     case "$order" in
 	reversed|descending)
@@ -214,10 +215,10 @@ get_all_mirrors() {
 	    ;;
     esac
 
-    zobj=$( zfs list -H -t $type $sort_order -o name -d 1 $zfs | \
+    _zobj=$( zfs list -H -t $type $sort_order -o name -d 1 $zfs | \
 		  grep -E "[@#]$snap_match" | extract_tags )
 
-    setvar "$var_return" "$zobj"
+    setvar "$var_return" "$_zobj"
 }
 
 # List the tags for all the mirror copies (snapshots or bookmarks) known
@@ -229,7 +230,7 @@ list_tags() {
     local mirror
 
     path_to_zfs zfs $filesystem
-    get_all_mirror_tagss prevmirrors all $zfs reversed
+    get_all_mirror_tags prevmirrors all $zfs reversed
 
     echo $prevmirrors
 }
@@ -247,9 +248,9 @@ latest_common_tag() {
     local receivertags
     local sendertags
     local serversnap
-    local prevmirrortag
+    local _prevmirrortag
 
-    get_all_mirror_tagss sendertags all $local_zfs reversed
+    get_all_mirror_tags sendertags all $local_zfs reversed
 
     receivertags=$(
 	on_receiver $hostname $username \
@@ -259,19 +260,19 @@ latest_common_tag() {
     for sendertag in $sendertags ; do
 	for receivertag in $receivertags ; do
 	    if [ "$sendertag" = "$recevertag" ]; then
-		prevmirrortag=$sendertag
+		_prevmirrortag=$sendertag
 		break 2
 	    fi
 	done
     done
 
-    if [ -z $prevmirrortag ]; then
+    if [ -z $_prevmirrortag ]; then
 	echo >&2 "${ME}: Fatal -- no previous common mirrored state of" \
 		 "$filesystem exists. Cannot generate delta"
 	exit 1
     fi
 
-    setvar "$var_return" "$prevbackuptag"
+    setvar "$var_return" "$_prevmirrortag"
 }
 
 # On the client: send a snapshot of a filesystem to the backup server.
