@@ -394,7 +394,7 @@ command_line() {
 		set -x
 		;;
 	    f)			# filesystem (can be repeated)
-		option_f="${option_f}${option_f:+ }$OPTARG"
+		option_f="${option_f}${option_f:+ }$( echo $OPTARG | tr ':' ' ' )"
 		;;
 	    F)			# A single filesystem (receiver only)
 		option_F=$OPTARG
