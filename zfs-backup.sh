@@ -198,8 +198,12 @@ server_local_storage() {
 path_to_zfs() {
     local var_return="$1"
     local path="$2"
+    local zfs
 
-    setvar "$var_return" "$(zfs list -H -t filesystem -o name $path)"
+    zfs=$(zfs list -H -t filesystem -o name $path)
+    : ${zfs:?${ME}: Cannot find a ZFS mounted as filesystem \"$path\"}
+
+    setvar "$var_return" "$zfs"
 }
 
 
@@ -208,8 +212,12 @@ path_to_zfs() {
 zfs_to_path() {
     local var_return="$1"
     local zfs="$2"
+    local mountpoint
 
-    setvar "$var_return" "$(zfs list -H -t filesystem -o mountpoint $zfs)"
+    mountpoint=$(zfs list -H -t filesystem -o mountpoint $zfs)
+    : ${mountpoint:?${ME}: Cannot find a mountpoint for ZFS \"$zfs\"}
+
+    setvar "$var_return" "$mountpoint"
 }
 
 # snapname is used for both snapshots and bookmarks -- it is a unique
@@ -246,7 +254,9 @@ get_tag_from() {
 
 
 # return the list of full snapshot or bookmark names of previous
-# backups matching the specified tag
+# backups matching the specified tag.  This is treated as only
+# returning one item everywhere, but it is in principle capable of
+# returning two...
 get_prev_backup_by_tag() {
     local var_return="$1"
     local zfs="$2"
@@ -255,6 +265,7 @@ get_prev_backup_by_tag() {
 
     prevbackups=$(zfs list -H -d 1 -t snapshot,bookmark -o name $zfs | \
 			 grep -E "[@#]$tag\$")
+    : ${prevbackups:?${ME}: Cannot find the previous backup matching tag \"$tag\"}
 
     setvar "$var_return" "$prevbackups"
 }
@@ -333,8 +344,6 @@ list_tags() {
     local backup
 
     path_to_zfs zfs $filesystem
-    : ${zfs:?${ME}: Can't find a ZFS mounted as filesystem \"$filesystem\"}
-
     get_zfs_objects prevbackups all $zfs reversed
 
     for backup in $prevbackups; do
@@ -557,15 +566,10 @@ check_server_setup_for_client() {
 
     server_local_storage zfs "$clienthost"
     zfs_to_path mountpoint $zfs
-    if [ -z $mountpoint ]; then
-	echo >&2 "$ME: FAIL Backup filesystem \"$mountpoint\" not mounted"
-	return 1
-    else
-	echo >&2 "==> OK: backup storage \"$mountpoint\" exists"
-    fi
+
+    echo >&2 "==> OK: backup storage \"$mountpoint\" exists"
 
     check_zfs_server_actions $zfs $serveruser
-
     check_access $serveruser $mountpoint
 
     return 0
@@ -859,19 +863,14 @@ client_check() {
     local allowedflags=0
 
     path_to_zfs zfs $filesystem
-    if [ -z "$zfs" ]; then
-	echo >&2 "$ME: FAIL filesystem \"$filesystem\" non-existent"
+    mp=$( zfs list -o mountpoint -H $zfs )
+
+    if [ $mp != $filesystem ]; then
+	echo >&2 "${ME}: FAIL filesystem \"$filesystem\" is not a" \
+		 "mount point"
 	exit 1
     else
-	mp=$( zfs list -o mountpoint -H $zfs )
-
-	if [ $mp != $filesystem ]; then
-	    echo >&2 "${ME}: FAIL filesystem \"$filesystem\" is not a" \
-		     "mount point"
-	    exit 1
-	else
-	    echo >&2 "--> OK: client filesystem \"$filesystem\" exists"
-	fi
+	echo >&2 "--> OK: client filesystem \"$filesystem\" exists"
     fi
 
     allow=$( zfs allow $zfs | grep "user $clientuser" | \
@@ -960,10 +959,8 @@ client_backup() {
 
     generate_snapname snapname
     path_to_zfs zfs $filesystem
-    : ${zfs:?${ME}: Can't find a ZFS mounted as filesystem \"$filesystem\"}
 
     get_prev_backup_by_tag prevbackup $zfs $prevbackuptag
-    : ${prevbackup:?${ME}: Can't find the snapshot matching tag \"$prevbackuptag\"}
 
     create_snapshot $zfs $snapname && \
         send_snapshot $zfs $prevbackup $snapname && \
@@ -1041,7 +1038,6 @@ client_full() {
 
     generate_snapname snapname
     path_to_zfs zfs $filesystem
-    : ${zfs:?${ME}: Can't find a ZFS mounted as filesystem \"$filesystem\"}
 
     create_snapshot $zfs $snapname && send_zfs $zfs $snapname
 }
@@ -1071,8 +1067,6 @@ client_nuke() {
     local zfs
 
     path_to_zfs zfs $filesystem
-    : ${zfs:?${ME}: Can't find a ZFS mounted as filesystem \"$filesystem\"}
-
     get_zfs_objects snapshots 'snapshot' $zfs
 
     for object in $snapshots ; do
