@@ -179,7 +179,7 @@ create_snapshot() {
 # Get all of the snapnames used for mirroring of a particular ZFS.
 # Choose from snapshots, bookmarks or both and order olded or newest
 # first.
-get_all_mirrors() {
+get_all_mirror_tags() {
     local var_return="$1"
     local zfs="$2"
     local type="$3"
