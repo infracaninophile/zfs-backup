@@ -26,8 +26,52 @@ usage() {
     cat >&2 <<EOF
 $ME: Usage:
     $ME __client
-    $ME __receive [-d] -z zfs
-    $ME mirror -h hostname -u user -
+    $ME __list_tags [-d] -F filesystem
+    $ME mirror -h hostname -u user -f filesystem:...
+    $ME init -h hostname -u user -f filesystem:...
+
+'$ME __client' For internal use: should only be run as a forced
+command from the mirror user's authorized_keys file.  It takes no
+options.
+
+'$ME __list_tags' For internal use on the receiving host only.  List
+the mirroring tags known for the given filesystem, in date order,
+newest first.
+
+'$ME mirror' Snapshot the ZFSes containing the listed filesystems and
+send an incemental stream of all changes beteen the previous snapshot
+and this one to the receiving host.
+
+'$ME init' Snapshot the ZFSes containing the listed filesystems and
+send a full stream of the filesystem upto this snapshot to the
+receiving host.  After this, it will be possible to send incremental
+updates via '$ME mirror ...'
+
+Options:
+    -d Debug mode: trace program execution to stderr.
+    -f Filesystems to mirror -- as a colon separated list of the full paths
+       from the root directory.  Can be given multiple times: additional
+       filesystem will be added to the list.
+    -h Hostname to mirror the filesystems onto.
+    -n Dry-run mode: show what would be done without committing any changes.
+    -u Username on the receiving host.
+    -v Verbose operation: print information about progress to stderr.
+    -z Compress data over the wire.  Enables SSH's Compression option.
+
+Compressing SSH trffic may or may not improve performance: you will
+have to experiment to find the best setting.  In general, compression
+only helps on relatively low bandwidth, high RTT connections, and
+where content is intrinsically compressible.
+
+Always run this script on the sending server as the same user, who is
+assumed to own the SSH key used for access.
+
+The user on the receiving server is assumed to have full permissions
+to receive the serialized ZFS data and to mount and unmount the
+destination filesystem.  You will need to set the vfs.usermount sysctl
+to 1 and make sure the user owns the mountpoint directory that the
+mirrored filesystem is mounted on top of.  This will be hidden once
+the mirrored filesystem is mounted.
 
 EOF
     exit 1
@@ -39,8 +83,8 @@ EOF
 # will enforce running only the commands known to zfs-mirror.sh
 : ${MIRRORKEY:=$( eval echo ~$SERVERUSER)/.ssh/zfs-mirror}
 on_receiver() {
-    local receiverhost=$1
-    local receiveruser=$2
+    local receiverhost="$1"
+    local receiveruser="$2"
     shift 2
 
     ssh -o BatchMode=yes -o IdentitiesOnly=yes -o IdentityFile=$MIRRORKEY \
@@ -66,8 +110,12 @@ runv() {
 path_to_zfs() {
     local var_return="$1"
     local path="$2"
+    local zfs
 
-    setvar "$var_return" "$(zfs list -H -t filesystem -o name $path)"
+    zfs=$(zfs list -H -t filesystem -o name $path)
+    : ${zfs:?${ME}: Cannot find a ZFS mounted as filesystem \"$path\"}
+
+    setvar "$var_return" "$zfs"
 }
 
 
@@ -77,8 +125,12 @@ path_to_zfs() {
 zfs_to_path() {
     local var_return="$1"
     local zfs="$2"
+    local mountpoint
 
-    setvar "$var_return" "$(zfs list -H -t filesystem -o mountpoint $zfs)"
+    mountpoint=$(zfs list -H -t filesystem -o mountpoint $zfs)
+    : ${mountpoint:?${ME}: Cannot find a mountpoint for ZFS \"$zfs\"}
+
+    setvar "$var_return" "$mountpoint"
 }
 
 # A unique snapname is used for each mirrored zfs -- the snapname is
@@ -104,25 +156,23 @@ readonly snap_match="${TAG}[[:xdigit:]]{16}$"
 
 # Extract the $tag from a fully or partially qualified snapshot or
 # bookmark name (eg zpool/some/zfs@snapname @snapname
-# zpool/some/zfs#bookmark #bookmark)
-get_tag_from() {
-    local name=$1
+# zpool/some/zfs#bookmark #bookmark) listed on stdin, one per line.
+extract_tags() {
+    local name
 
-    echo ${name##*[@#]}
+    while read name; do
+	echo ${name##*[@#]}
+    done
 }
 
-# Get the latest snapname used for mirroring of a particular ZFS This
-# should always return a snapshot, unless things have gone pretty awry
-# for quite some time.  However, we're OK if it returns a bookmark.
-get_latest_mirror() {
-    local var_return="$1"
-    local zfs="$2"
-    local latest
+# Create a snapshot
+create_snapshot() {
+    local zfs="$1"
+    local snapname="$2"
 
-    latest=$( zfs list -H -d 1 -t snapshot,bookmark -o name -S creation | \
-		    grep -E "[@#]$snapmatch" | head -1 )
-
-    setvar "$var_return" "$latest"
+    if [ -z $option_n ]; then
+	runv zfs snapshot "$zfs@$snapname"
+    fi
 }
 
 # Get all of the snapnames used for mirroring of a particular ZFS.
@@ -165,43 +215,160 @@ get_all_mirrors() {
     esac
 
     zobj=$( zfs list -H -t $type $sort_order -o name -d 1 $zfs | \
-		  grep -E "[@#]$snap_match" )
+		  grep -E "[@#]$snap_match" | extract_tags )
 
     setvar "$var_return" "$zobj"
 }
 
-# The latest snapshot or bookmark tag already on the receiver
-receiver_last_mirror() {
-    local filesystem=${1?"${ME}: Need a filesystem for mirroring"}
+# List the tags for all the mirror copies (snapshots or bookmarks) known
+# on the named filesystem, *newest* first.
+list_tags() {
+    local filesystem="${1:?${ME}: Need a filesystem to list mirroring tags for}"
+    local prevmirrors
     local zfs
-    local lastmirror
+    local mirror
 
     path_to_zfs zfs $filesystem
-    : ${zfs:?"${ME}: Can't find a ZFS mounted as filesystem \"$filesystem\""}
+    get_all_mirror_tagss prevmirrors all $zfs reversed
 
-    get_latest_mirror lastmirror "$zfs"
-    get_tag_from "$lastmirror"
+    echo $prevmirrors
 }
 
+# Find the tag of the most recent backup that is known both on the
+# client and in our local store.  Server-side this will always be a
+# snapshot.
+latest_common_tag() {
+    local var_return="$1"
+    local hostname="$2"
+    local username="$3"
+    local local_zfs="$4"
+    local filesystem="$5"
+
+    local receivertags
+    local sendertags
+    local serversnap
+    local prevmirrortag
+
+    get_all_mirror_tagss sendertags all $local_zfs reversed
+
+    receivertags=$(
+	on_client $hostname $username \
+		  __list_tags $option_d -F $filesystem
+	      )
+
+    for sendertag in $sendertags ; do
+	for receivertag in $receivertags ; do
+	    if [ "$sendertag" = "$recevertag" ]; then
+		prevmirrortag=$sendertag
+		break 2
+	    fi
+	done
+    done
+
+    if [ -z $prevmirrortag ]; then
+	echo >&2 "${ME}: Fatal -- no previous common mirrored state of" \
+		 "$filesystem exists. Cannot generate delta"
+	exit 1
+    fi
+
+    setvar "$var_return" "$prevbackuptag"
+}
+
+# On the client: send a snapshot of a filesystem to the backup server.
+# If the send doesn't succeed, destroy the snapshot.
+send_snapshot() {
+    local zfs="$1"
+    local previous_snapshot="$2"
+    local this_snapshot="$3"
+
+    if [ -z $option_n ]; then
+	runv zfs send -i $previous_snapshot "$zfs@$this_snapshot" || \
+	    runv zfs destroy "$zfs@$this_snapshot"
+    fi
+}
+
+# Initial backup -- send the whole filesystem snapshot to the backup
+# server This should only ever happen one time, otherwise it will wipe
+# out the snapshot history on the backup server.  If the send doesn't
+# succeed, destroy the snapshot.
+send_zfs() {
+    local zfs="$1"
+    local snapname="$2"
+
+    runv zfs send $option_n $option_v "$zfs@$snapname" || \
+	runv zfs destroy $option_n "$zfs@$snapname"
+}
 
 # This is used receiver-side for both mirroring and the initial copy
 # of the ZFS.
 receiver_mirror() {
-    local filesystem=${1?"${ME}: Need a filesystem for mirroring"}
+    local filesystem="${1?${ME}: Need a filesystem for mirroring}"
     local zfs
 
     path_to_zfs zfs $filesystem
-    : ${zfs:?"${ME}: Can't find a ZFS mounted as filesystem \"$filesystem\""}
-
     runv zfs receive $option_n $option_v -F $zfs
 }
 
-sender_mirror() {
+# Send an incremental update from the previous snapshot known on the
+# receiving host to the current, freshly created snapshot
+sender_mirror_one_filesystem() {
+    local hostname="$1"
+    local username="$2"
+    local filesystem="$3"
+    local zfs
+    local snapname
+    local prev_snapname
 
+    path_to_zfs zfs "$filesystem"
+
+    latest_common_tag prev_snapname "$hostname" "$username" "$zfs" \
+		       "$filesystem"
+
+    generate_snapname snapname
+    create_snapshot "$zfs" "$snapname"
+
+    send_snapshot "$zfs" "$prev_snapname" "$snapname" | \
+	on_client "$hostname" "$username" mirror $option_d $option_n \
+		  $option_v -F $filesystem
+}
+
+sender_mirror() {
+    local hostname="${1:?${ME}: Need a hostname to mirror to}"
+    local username="${2:?${ME}: Need a username to run mirroring as}"
+    local filesystems="${3:?${ME}: Need a list of filesystems to mirror}"
+    local fs
+
+    for fs in $filesystems ; do
+	sender_mirror_one_filesystem "$hostname" "$username" "$fs"
+    done
+}
+
+sender_init_one_filesystem() {
+    local hostname="$1"
+    local username="$2"
+    local filesystem="$3"
+    local zfs
+    local snapname
+
+    path_to_zfs zfs "$filesystem"
+    generate_snapname snapname
+    create_snapshot "$zfs" "$snapname"
+
+    send_zfs "$zfs" "$snapname" | \
+	on_client $hostname $username init $option_d $option_n \
+		  $option_v -F $filesystem
 }
 
 sender_init() {
+    local hostname="${1:?${ME}: Need a hostname to mirror to}"
+    local username="${2:?${ME}: Need a username to run mirroring as}"
+    local filesystems="${3:?${ME}: Need a list of filesystems to mirror}"
 
+    local fs
+
+    for fs in $filesystems ; do
+	sender_init_one_filesystem "$hostname" "$username" "$fs"
+    done
 }
 
 # Parse command line options -- maybe spoofed using $SSH_ORIGINAL_COMMAND
@@ -273,16 +440,16 @@ ACTION=$1
 shift 1
 
 # In general receiver_foo() functions will operate on a single
-# filesystem, while sender_foo() functions will read their list of
-# targets from stdin, and there may be several targets.
+# filesystem, while sender_foo() functions will may have several
+# filesystem targets.
 case $ACTION in
     __client)		# Not allowed on command line
 	usage
 	;;
-    __last_mirror)
+    __list_tags)
 	if [ "$ON_RECEIVER" = 'yes' ]; then
 	    command_line "dF:" "$@"
-	    receiver_last_mirror "$option_F"
+	    list_tags "$option_F"
 	else
 	    :			# Do nothing sender-side
 	fi
