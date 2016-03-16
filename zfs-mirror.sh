@@ -209,7 +209,7 @@ get_all_mirror_tags() {
 	bookmark|snapshot)
 	    ;;
 	*)
-	    echo >&2 "$ME: $type not understood:" \
+	    echo >&2 "$ME: Type $type not understood:" \
 		     "try one of 'all', 'bookmark' or 'snapshot'"
 	    exit 1
 	    ;;
@@ -230,7 +230,7 @@ list_tags() {
     local mirror
 
     path_to_zfs zfs $filesystem
-    get_all_mirror_tags prevmirrors all $zfs reversed
+    get_all_mirror_tags prevmirrors $zfs all reversed
 
     echo $prevmirrors
 }
@@ -250,7 +250,7 @@ latest_common_tag() {
     local serversnap
     local _prevmirrortag
 
-    get_all_mirror_tags sendertags all $local_zfs reversed
+    get_all_mirror_tags sendertags $local_zfs all reversed
 
     receivertags=$(
 	on_receiver $hostname $username \
