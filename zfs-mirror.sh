@@ -96,7 +96,7 @@ on_receiver() {
 # command
 runv() {
     if [ -n $option_v ]; then
-	if [ "$ON_CLIENT" = 'yes' ]; then
+	if [ "$ON_RECEIVER" = 'yes' ]; then
 	    echo >&2 "--> $@"
 	else
 	    echo >&2 "==> $@"
@@ -252,8 +252,8 @@ latest_common_tag() {
     get_all_mirror_tagss sendertags all $local_zfs reversed
 
     receivertags=$(
-	on_client $hostname $username \
-		  __list_tags $option_d -F $filesystem
+	on_receiver $hostname $username \
+		    __list_tags $option_d -F $filesystem
 	      )
 
     for sendertag in $sendertags ; do
@@ -328,8 +328,8 @@ sender_mirror_one_filesystem() {
     create_snapshot "$zfs" "$snapname"
 
     send_snapshot "$zfs" "$prev_snapname" "$snapname" | \
-	on_client "$hostname" "$username" mirror $option_d $option_n \
-		  $option_v -F $filesystem
+	on_receiver "$hostname" "$username" mirror $option_d $option_n \
+		    $option_v -F $filesystem
 }
 
 sender_mirror() {
@@ -355,8 +355,8 @@ sender_init_one_filesystem() {
     create_snapshot "$zfs" "$snapname"
 
     send_zfs "$zfs" "$snapname" | \
-	on_client $hostname $username init $option_d $option_n \
-		  $option_v -F $filesystem
+	on_receiver $hostname $username init $option_d $option_n \
+		    $option_v -F $filesystem
 }
 
 sender_init() {
