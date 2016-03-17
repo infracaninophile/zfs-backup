@@ -230,7 +230,7 @@ list_tags() {
     local mirror
 
     path_to_zfs zfs $filesystem
-    get_all_mirror_tags prevmirrors $zfs all reversed
+    get_all_mirror_tags prevmirrors $zfs all normal
 
     echo $prevmirrors
 }
@@ -250,7 +250,7 @@ latest_common_tag() {
     local serversnap
     local _prevmirrortag
 
-    get_all_mirror_tags sendertags $local_zfs all reversed
+    get_all_mirror_tags sendertags $local_zfs all normal
 
     receivertags=$(
 	on_receiver $hostname $username \
