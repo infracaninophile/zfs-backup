@@ -283,7 +283,7 @@ send_snapshot() {
     local this_snapshot="$3"
 
     if [ -z $option_n ]; then
-	runv zfs send -PRi $previous_snapshot "$zfs@$this_snapshot" || \
+	runv zfs send -PRI $previous_snapshot "$zfs@$this_snapshot" || \
 	    runv zfs destroy "$zfs@$this_snapshot"
     fi
 }
