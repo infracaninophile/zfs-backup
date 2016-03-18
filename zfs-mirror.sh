@@ -276,7 +276,12 @@ latest_common_tag() {
 }
 
 # On the client: send a snapshot of a filesystem to the backup server.
-# If the send doesn't succeed, destroy the snapshot.
+# If the send doesn't succeed, destroy the snapshot.  zfs send -RI
+# does not replicate bookmarks to the mirrored filesystem, but it does
+# delete snapshots that have been bookmarked and then removed, which
+# makes bookmarks fairly useless for mirroring to provide an online
+# spare server: if you wanted to reverse the direction of mirroring,
+# you'ld need the same snapshots / bookmarks either side.
 send_snapshot() {
     local zfs="$1"
     local previous_snapshot="$2"
