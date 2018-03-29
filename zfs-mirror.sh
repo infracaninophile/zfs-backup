@@ -5,7 +5,7 @@
 # ZFS mirroring -- push a filesystem snapshot to a mirror machine.  We
 # assume that the filesystem layout is the same on sender and receiver
 # sides: the receiving ZFS is mounted in the same place as on the
-# sender.  However the names of the sendming and receiving ZFSes need
+# sender.  However the names of the sending and receiving ZFSes need
 # not be the same. To be run out of cron on the source machine at
 # regular intervals (every 5 minutes is typical).
 #
@@ -58,7 +58,7 @@ Options:
     -v Verbose operation: print information about progress to stderr.
     -z Compress data over the wire.  Enables SSH's Compression option.
 
-Compressing SSH trffic may or may not improve performance: you will
+Compressing SSH traffic may or may not improve performance: you will
 have to experiment to find the best setting.  In general, compression
 only helps on relatively low bandwidth, high RTT connections, and
 where content is intrinsically compressible.
@@ -197,7 +197,7 @@ get_all_mirror_tags() {
 	    ;;
 	*)
 	    echo >&2 "$ME: Sort order $order not understood:" \
-		     "try one of normal, reversed. ascending, descending"
+		     "try one of normal, reversed, ascending, descending"
 	    exit 1
 	    ;;
     esac
